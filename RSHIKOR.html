@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>РСШИКОР — Система управления</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="shared.js"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+  <script type="text/babel" src="students.jsx"></script>
+  <script type="text/babel" src="medical.jsx"></script>
+  <script type="text/babel" src="achievements.jsx"></script>
+  <script type="text/babel" src="schedule.jsx"></script>
+  <script type="text/babel" src="users.jsx"></script>
+  <script type="text/babel" src="reports.jsx"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { height: 100%; overflow: auto; }
+    body {
+      height: 100%; overflow: hidden;
+      min-width: 1280px;          /* стандартная минимальная ширина для всего приложения */
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: #F0F2F7; color: #0F172A; font-size: 14px; line-height: 1.5;
+    }
+    #root { height: 100%; display: flex; min-width: 1280px; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: #C8D0DC; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    button { cursor: pointer; }
+    * { -webkit-font-smoothing: antialiased; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useEffect, useCallback } = React;
+
+/* ─── TWEAK DEFAULTS ─────────────────────────────────────────── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "role": "admin",
+  "lang": "ru",
+  "collapsed": false
+}/*EDITMODE-END*/;
+
+/* ─── DESIGN TOKENS ──────────────────────────────────────────── */
+const N = '#1D2B4F';       // navy
+const G = '#FFCF00';       // gold
+const B = '#0055A4';       // blue
+const BG = '#F0F2F7';
+const WH = '#FFFFFF';
+const BR = '#E2E8F0';
+const T0 = '#0F172A';
+const T1 = '#475569';
+const T2 = '#94A3B8';
+const T3 = '#CBD5E1';
+const RE = '#DC2626';
+const REB = '#FEF2F2';
+const AM = '#D97706';
+const AMB = '#FFFBEB';
+const GO = '#F59E0B';
+const SI = '#64748B';
+const BR2 = '#92400E';
+const DIR = '#0D9488'; // director teal
+
+/* ─── TRANSLATIONS ───────────────────────────────────────────── */
+const LANG = {
+  ru: {
+    appTitle: 'РСШИКОР', appSub: 'им. К. Ахметова',
+    roles: { admin: 'Администратор', director: 'Директор', trainer: 'Тренер' },
+    navLabels: ['Дашборд','Ученики','Медицина','Достижения','Расписание','Отчёты','Пользователи'],
+    navKeys:   ['dashboard','students','medical','achievements','schedule','reports','users'],
+    sportsLabel: 'Виды спорта',
+    sports: ['Дзюдо','Вольная борьба','Греко-рим. борьба','Женская борьба','Бокс',
+             'Плавание','Артист. плавание','Водное поло','Баскетбол','Таэквондо',
+             'Велоспорт','Фехтование','Спорт. гимнастика','Гребля'],
+    kpi: { students:'Активных учеников', trainers:'Тренеров',
+           medical:'Мед. случаев', achievements:'Достижений в 2026',
+           myStudents:'Моих учеников', myAlerts:'Мед. случаи', myAch:'Достижений (2026)' },
+    distribution: 'Распределение по видам спорта',
+    medAlerts: 'Медицинские индикаторы',
+    recentAch: 'Последние достижения',
+    weekSched: 'Расписание на неделю',
+    total: 'Всего', viewAll: 'Показать все →',
+    red: 'Полное освобождение', yellow: 'Ограниченные нагрузки',
+    gold:'Золото', silver:'Серебро', bronze:'Бронза',
+    logout: 'Выйти', today: '25 мая 2026',
+    inDev: 'Раздел в разработке', inDevSub: 'Будет реализован в следующей итерации',
+    subMay: '+12 в мае', onePerSport: 'По одному на вид спорта',
+    groups: 'группы',
+  },
+  kz: {
+    appTitle: 'РСШИКОР', appSub: 'К. Ахметов атындағы',
+    roles: { admin: 'Әкімші', director: 'Директор', trainer: 'Жаттықтырушы' },
+    navLabels: ['Басқару тақтасы','Оқушылар','Медицина','Жетістіктер','Кесте','Есептер','Пайдаланушылар'],
+    navKeys:   ['dashboard','students','medical','achievements','schedule','reports','users'],
+    sportsLabel: 'Спорт түрлері',
+    sports: ['Дзюдо','Еркін күрес','Грек-рим күресі','Әйелдер күресі','Бокс',
+             'Жүзу','Суда гимнастика','Су добы','Баскетбол','Таэквондо',
+             'Велоспорт','Қылышпен ж/ж','Спорт гимнастикасы','Ескек ею'],
+    kpi: { students:'Белсенді оқушылар', trainers:'Жаттықтырушылар',
+           medical:'Мед. жағдайлар', achievements:'2026 жылғы жетістіктер',
+           myStudents:'Менің оқушыларым', myAlerts:'Мед. жағдайлар', myAch:'Жетістіктер (2026)' },
+    distribution: 'Спорт түрлері бойынша',
+    medAlerts: 'Медициналық индикаторлар',
+    recentAch: 'Соңғы жетістіктер',
+    weekSched: 'Апта кестесі',
+    total: 'Барлығы', viewAll: 'Барлығын көру →',
+    red: 'Толық босату', yellow: 'Шектеулі жүктеме',
+    gold:'Алтын', silver:'Күміс', bronze:'Қола',
+    logout: 'Шығу', today: '25 мамыр 2026',
+    inDev: 'Бөлім әзірленуде', inDevSub: 'Келесі итерацияда іске асырылады',
+    subMay: '+12 мамырда', onePerSport: 'Әр спорт түріне бір',
+    groups: 'топ',
+  }
+};
+
+/* ─── MOCK DATA ───────────────────────────────────────────────── */
+const SPORTS_DATA = [
+  {s:38},{s:35},{s:28},{s:22},{s:42},{s:26},{s:16},{s:20},
+  {s:24},{s:28},{s:18},{s:14},{s:12},{s:10}
+];
+
+const MEDICAL = [
+  {id:1, name:'Алибек Жанбеков',   si:4,  status:'red',    desc:'Травма колена',       date:'22.05.26'},
+  {id:2, name:'Диана Сейткали',    si:12, status:'red',    desc:'Растяжение связок',    date:'20.05.26'},
+  {id:3, name:'Нурлан Асанов',     si:0,  status:'red',    desc:'Ушиб ребра',           date:'19.05.26'},
+  {id:4, name:'Айгерим Бекова',    si:5,  status:'yellow', desc:'Воспаление плеча',     date:'18.05.26'},
+  {id:5, name:'Тимур Сейткалиев',  si:1,  status:'yellow', desc:'Ушиб руки',            date:'17.05.26'},
+  {id:6, name:'Зарина Абдуллина',  si:6,  status:'yellow', desc:'Растяжение мышцы',     date:'15.05.26'},
+  {id:7, name:'Бауыржан Досов',    si:9,  status:'yellow', desc:'Боль в спине',         date:'14.05.26'},
+  {id:8, name:'Камила Жакупова',   si:4,  status:'yellow', desc:'Ушиб кисти',           date:'12.05.26'},
+];
+
+const ACHIEVEMENTS = [
+  {id:1, name:'Арман Сулейменов',   si:4,  comp:'Чемпионат РК 2026',    medal:'gold',   date:'15.05.26'},
+  {id:2, name:'Нурлан Бейсембаев',  si:4,  comp:'Первенство РК 2026',   medal:'gold',   date:'20.04.26'},
+  {id:3, name:'Малика Жанасова',    si:0,  comp:'Кубок Азии 2026',      medal:'silver', date:'10.05.26'},
+  {id:4, name:'Ержан Касымов',      si:9,  comp:'Чемпионат Азии 2026',  medal:'bronze', date:'05.05.26'},
+  {id:5, name:'Сабина Нурланова',   si:12, comp:'Кубок РК 2026',        medal:'gold',   date:'28.04.26'},
+  {id:6, name:'Даниил Ким',         si:11, comp:'Первенство РК 2026',   medal:'silver', date:'20.04.26'},
+  {id:7, name:'Серик Ахметов',      si:4,  comp:'Кубок РК 2026',        medal:'bronze', date:'12.05.26'},
+  {id:8, name:'Алтын Жумабаев',     si:4,  comp:'Кубок Алматы 2026',   medal:'silver', date:'10.04.26'},
+  {id:9, name:'Берик Садыков',      si:4,  comp:'Кубок Алматы 2026',   medal:'bronze', date:'10.04.26'},
+];
+
+/* ─── NOTIFICATIONS DATA ─────────────────────────────────────── */
+const NOTIFS_BASE = [
+  { id:1, type:'medical',     text:'Алибек Жанбеков — новая травма колена',      time:'30 мин назад', read:false, page:'medical'      },
+  { id:2, type:'achievement', text:'Арман Сулейменов — 🥇 Чемпионат РК 2026',    time:'2 ч назад',    read:false, page:'achievements' },
+  { id:3, type:'student',     text:'Добавлен ученик: Жанар Сейткали',            time:'5 ч назад',    read:true,  page:'students'     },
+  { id:4, type:'medical',     text:'Диана Сейткали — статус обновлён',           time:'Вчера',        read:true,  page:'medical'      },
+  { id:5, type:'achievement', text:'Нурлан Бейсембаев — 🥇 Первенство РК 2026',  time:'Вчера',        read:true,  page:'achievements' },
+];
+
+/* ─── TOAST SYSTEM ───────────────────────────────────────────── */
+const _toastListeners = [];
+window.TOAST = {
+  show: (msg, type = 'success') => {
+    const id = Date.now() + Math.random();
+    _toastListeners.forEach(fn => fn({ id, msg, type }));
+  },
+};
+function ToastContainer() {
+  const [toasts, setToasts] = useState([]);
+  useEffect(() => {
+    const handler = toast => {
+      setToasts(p => [...p, toast]);
+      setTimeout(() => setToasts(p => p.filter(t => t.id !== toast.id)), 2800);
+    };
+    _toastListeners.push(handler);
+    return () => { const i = _toastListeners.indexOf(handler); if (i >= 0) _toastListeners.splice(i, 1); };
+  }, []);
+  if (!toasts.length) return null;
+  return (
+    <div style={{ position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', zIndex:990, display:'flex', flexDirection:'column', gap:8, alignItems:'center', pointerEvents:'none' }}>
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}`}</style>
+      {toasts.map(t => (
+        <div key={t.id} style={{
+          background: t.type === 'error' ? RE : '#0F172A', color: WH,
+          borderRadius:10, padding:'10px 20px', fontSize:13, fontWeight:500,
+          boxShadow:'0 6px 24px rgba(0,0,0,0.22)', animation:'toastIn .2s ease',
+          display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap',
+        }}>
+          <span style={{ fontSize:15 }}>{t.type === 'error' ? '✕' : '✓'}</span>
+          {t.msg}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── LOGIN SCREEN ────────────────────────────────────────────── */
+function LoginScreen({ onLogin }) {
+  const [login,   setLogin]   = useState('');
+  const [pass,    setPass]    = useState('');
+  const [selRole, setSelRole] = useState('admin');
+  const [error,   setError]   = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const CREDS = {
+    admin:    { login:'admin',    name:'Сергей Иванов'   },
+    director: { login:'director', name:'Бейбут Атабеков' },
+    trainer:  { login:'trainer',  name:'Андрей Петров'   },
+  };
+  const ROLE_LABELS = [['admin','Администратор'],['director','Директор'],['trainer','Тренер']];
+
+  const handleLogin = () => {
+    if (!login || !pass) { setError('Введите логин и пароль'); return; }
+    if (login === CREDS[selRole].login && pass === '1234') {
+      setLoading(true);
+      setTimeout(() => onLogin(selRole), 420);
+    } else {
+      setError('Неверный логин или пароль');
+    }
+  };
+
+  return (
+    <div style={{
+      width:'100vw', height:'100vh',
+      background:`linear-gradient(150deg, ${N} 0%, #162448 100%)`,
+      display:'flex', alignItems:'center', justifyContent:'center',
+      position:'relative', overflow:'hidden',
+    }}>
+      <div style={{ position:'absolute', top:-180, right:-180, width:500, height:500, borderRadius:'50%', background:'rgba(255,207,0,0.035)', pointerEvents:'none' }} />
+      <div style={{ position:'absolute', bottom:-100, left:-100, width:360, height:360, borderRadius:'50%', background:'rgba(0,85,164,0.07)', pointerEvents:'none' }} />
+
+      <div style={{ width:420, background:WH, borderRadius:22, boxShadow:'0 40px 80px rgba(0,0,0,0.36)', overflow:'hidden' }}>
+        {/* Card header */}
+        <div style={{ background:N, padding:'30px 36px 22px', textAlign:'center' }}>
+          <img src="uploads/photo_53281291785257.png" alt="" style={{
+            width:58, height:58, borderRadius:'50%', objectFit:'cover',
+            border:'3px solid rgba(255,207,0,0.35)', marginBottom:12,
+          }} />
+          <div style={{ color:G, fontSize:21, fontWeight:800, letterSpacing:1.2 }}>РСШИКОР</div>
+          <div style={{ color:'rgba(255,255,255,0.32)', fontSize:11.5, marginTop:3 }}>им. К. Ахметова · Алматы</div>
+        </div>
+
+        {/* Form */}
+        <div style={{ padding:'26px 36px 30px', display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Role selector */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', background:BG, borderRadius:10, padding:3, gap:2 }}>
+            {ROLE_LABELS.map(([r, label]) => (
+              <button key={r} onClick={() => { setSelRole(r); setError(''); setLogin(''); }} style={{
+                padding:'7px 4px', border:'none', borderRadius:8,
+                background: selRole===r ? WH : 'transparent',
+                color: selRole===r ? T0 : T2, fontWeight: selRole===r ? 600 : 400,
+                fontSize:12, fontFamily:'inherit', cursor:'pointer',
+                boxShadow: selRole===r ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+                transition:'all .15s',
+              }}>{label}</button>
+            ))}
+          </div>
+
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:12, fontWeight:500, color:T1 }}>Логин</label>
+            <input value={login} onChange={e=>{setLogin(e.target.value);setError('');}}
+              onKeyDown={e=>e.key==='Enter'&&handleLogin()}
+              placeholder={CREDS[selRole].login}
+              style={{ ...window.SHARED.inputStyle, height:40 }} />
+          </div>
+
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:12, fontWeight:500, color:T1 }}>Пароль</label>
+            <input type="password" value={pass} onChange={e=>{setPass(e.target.value);setError('');}}
+              onKeyDown={e=>e.key==='Enter'&&handleLogin()}
+              placeholder="••••••"
+              style={{ ...window.SHARED.inputStyle, height:40 }} />
+          </div>
+
+          {error && (
+            <div style={{ fontSize:12, color:RE, background:REB, padding:'8px 12px', borderRadius:8, border:`1px solid ${RE}22` }}>
+              {error}
+            </div>
+          )}
+
+          <button onClick={handleLogin} disabled={loading} style={{
+            height:44, border:'none', borderRadius:10,
+            background: loading ? T3 : B,
+            color:WH, fontWeight:700, fontSize:14, fontFamily:'inherit',
+            cursor: loading ? 'default' : 'pointer', letterSpacing:0.3,
+            transition:'background .2s', marginTop:2,
+          }}>
+            {loading ? '...' : 'Войти'}
+          </button>
+
+          <div style={{ textAlign:'center', fontSize:11, color:T3 }}>
+            Демо: логин <strong style={{color:T2}}>{CREDS[selRole].login}</strong>, пароль <strong style={{color:T2}}>1234</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SVG ICONS ──────────────────────────────────────────────── */
+const Ic = {
+  Grid: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5"/>
+      <rect x="9"   y="1.5" width="5.5" height="5.5" rx="1.5"/>
+      <rect x="1.5" y="9"   width="5.5" height="5.5" rx="1.5"/>
+      <rect x="9"   y="9"   width="5.5" height="5.5" rx="1.5"/>
+    </svg>
+  ),
+  Users: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="8" cy="5.5" r="2.5"/>
+      <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" strokeLinecap="round"/>
+    </svg>
+  ),
+  Cross: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="2" y="2" width="12" height="12" rx="2.5"/>
+      <line x1="8" y1="5.5" x2="8" y2="10.5" strokeLinecap="round"/>
+      <line x1="5.5" y1="8" x2="10.5" y2="8" strokeLinecap="round"/>
+    </svg>
+  ),
+  Trophy: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4.5 2h7v5.5a3.5 3.5 0 01-7 0V2z"/>
+      <path d="M4.5 5H3a1.5 1.5 0 000 3h1.5M11.5 5H13a1.5 1.5 0 010 3h-1.5" strokeLinecap="round"/>
+      <line x1="8" y1="11" x2="8" y2="13.5" strokeLinecap="round"/>
+      <line x1="5.5" y1="13.5" x2="10.5" y2="13.5" strokeLinecap="round"/>
+    </svg>
+  ),
+  Cal: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="2" y="3.5" width="12" height="11" rx="2"/>
+      <line x1="2" y1="7.5" x2="14" y2="7.5"/>
+      <line x1="5.5" y1="1.5" x2="5.5" y2="5" strokeLinecap="round"/>
+      <line x1="10.5" y1="1.5" x2="10.5" y2="5" strokeLinecap="round"/>
+    </svg>
+  ),
+  Chart: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <rect x="1.5" y="9"   width="3" height="5.5" rx="1" opacity="0.7"/>
+      <rect x="6.5" y="5.5" width="3" height="9"   rx="1" opacity="0.85"/>
+      <rect x="11.5" y="2"  width="3" height="12.5" rx="1"/>
+    </svg>
+  ),
+  Gear: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="8" r="2.5"/>
+      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4" strokeLinecap="round"/>
+    </svg>
+  ),
+  Menu: () => (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <line x1="2" y1="4.5" x2="14" y2="4.5" strokeLinecap="round"/>
+      <line x1="2" y1="8"   x2="14" y2="8"   strokeLinecap="round"/>
+      <line x1="2" y1="11.5" x2="14" y2="11.5" strokeLinecap="round"/>
+    </svg>
+  ),
+  Logout: () => (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M6.5 14H4a2 2 0 01-2-2V4a2 2 0 012-2h2.5" strokeLinecap="round"/>
+      <path d="M10.5 11.5L14 8l-3.5-3.5M14 8H7" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+};
+
+/* ─── NOTIFICATION BELL ──────────────────────────────────────── */
+function NotificationBell({ onNav }) {
+  const [open,   setOpen]   = useState(false);
+  const [notifs, setNotifs] = useState(NOTIFS_BASE);
+  const unread = notifs.filter(n => !n.read).length;
+  const markAll = () => setNotifs(p => p.map(n => ({...n, read:true})));
+  const markOne = id => setNotifs(p => p.map(n => n.id===id ? {...n, read:true} : n));
+  const TYPE_ICON = { medical:'🔴', achievement:'🏅', student:'👤' };
+
+  return (
+    <div style={{ position:'relative' }}>
+      <button onClick={() => setOpen(!open)} style={{
+        position:'relative', width:36, height:36,
+        border:`1px solid ${BR}`, borderRadius:9,
+        background:WH, display:'flex', alignItems:'center', justifyContent:'center',
+        cursor:'pointer', color:T1, transition:'border-color .12s',
+      }}
+      onMouseEnter={e => e.currentTarget.style.borderColor='#93C5FD'}
+      onMouseLeave={e => e.currentTarget.style.borderColor=BR}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <path d="M8 1.5C5.5 1.5 3.5 3.5 3.5 6v3.5L2 12h12l-1.5-2.5V6C12.5 3.5 10.5 1.5 8 1.5z" strokeLinejoin="round"/>
+          <path d="M6.5 12c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5" strokeLinecap="round"/>
+        </svg>
+        {unread > 0 && (
+          <span style={{
+            position:'absolute', top:-5, right:-5, minWidth:18, height:18,
+            borderRadius:10, background:RE, color:WH, fontSize:10, fontWeight:700,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            padding:'0 4px', border:`2px solid ${WH}`, lineHeight:1,
+          }}>{unread}</span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position:'fixed', inset:0, zIndex:800 }} />
+          <div style={{
+            position:'absolute', top:44, right:0, width:348, background:WH,
+            borderRadius:14, boxShadow:'0 8px 40px rgba(0,0,0,0.16)',
+            border:`1px solid ${BR}`, zIndex:801, overflow:'hidden',
+          }}>
+            <div style={{ padding:'12px 16px', borderBottom:`1px solid ${BR}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ fontWeight:600, fontSize:13.5, color:T0 }}>
+                Уведомления
+                {unread > 0 && (
+                  <span style={{ marginLeft:7, fontSize:11, padding:'1px 7px', borderRadius:10, background:REB, color:RE, fontWeight:600 }}>{unread}</span>
+                )}
+              </div>
+              {unread > 0 && (
+                <button onClick={markAll} style={{ fontSize:11, color:B, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', fontWeight:500 }}>
+                  Отметить все
+                </button>
+              )}
+            </div>
+            {notifs.map(n => (
+              <div key={n.id} onClick={() => { markOne(n.id); if (n.page && onNav) { onNav(n.page); setOpen(false); } }}
+                style={{
+                  display:'flex', gap:11, padding:'11px 16px', cursor:'pointer',
+                  background: n.read ? 'transparent' : '#F0F6FF',
+                  borderBottom:`1px solid #F1F5F9`, transition:'background .1s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background='#F8FAFC'}
+                onMouseLeave={e => e.currentTarget.style.background=n.read?'transparent':'#F0F6FF'}
+              >
+                <span style={{ fontSize:15, lineHeight:1.5, flexShrink:0 }}>{TYPE_ICON[n.type] || '📌'}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12.5, color:n.read?T1:T0, fontWeight:n.read?400:500, lineHeight:1.45, textWrap:'pretty' }}>{n.text}</div>
+                  <div style={{ fontSize:11, color:T3, marginTop:2 }}>{n.time}</div>
+                </div>
+                {!n.read && <div style={{ width:7, height:7, borderRadius:'50%', background:B, flexShrink:0, marginTop:6 }} />}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ─── SIDEBAR ─────────────────────────────────────────────────── */
+function Sidebar({ t, role, activePage, onNav, activeSport, onSport, collapsed }) {
+  const TRAINER_SPORT = 4; // Boxing trainer in demo
+  const navItems = [
+    { key:'dashboard',    Icon: Ic.Grid   },
+    { key:'students',     Icon: Ic.Users  },
+    { key:'medical',      Icon: Ic.Cross  },
+    { key:'achievements', Icon: Ic.Trophy },
+    { key:'schedule',     Icon: Ic.Cal    },
+    ...(role !== 'trainer' ? [{ key:'reports', Icon: Ic.Chart }] : []),
+    ...(role === 'admin'   ? [{ key:'users',   Icon: Ic.Gear  }] : []),
+  ];
+  return (
+    <aside style={{
+      width: collapsed ? 64 : 240, minWidth: collapsed ? 64 : 240,
+      background: N, display:'flex', flexDirection:'column',
+      transition:'width .25s ease, min-width .25s ease', overflow:'hidden',
+      borderRight: '1px solid rgba(255,255,255,0.06)',
+    }}>
+      {/* Logo */}
+      <div style={{
+        height:64, display:'flex', alignItems:'center',
+        padding: collapsed ? '0 14px' : '0 16px', gap:10,
+        borderBottom:'1px solid rgba(255,255,255,0.08)', flexShrink:0,
+      }}>
+        <img src="uploads/photo_53281291785257.png" alt="РСШИКОР"
+          style={{ width:34, height:34, borderRadius:'50%', objectFit:'cover', flexShrink:0 }} />
+        {!collapsed && (
+          <div style={{ overflow:'hidden' }}>
+            <div style={{ color:G, fontWeight:700, fontSize:13.5, letterSpacing:0.3, whiteSpace:'nowrap' }}>{t.appTitle}</div>
+            <div style={{ color:'rgba(255,255,255,0.38)', fontSize:10, lineHeight:1.3, whiteSpace:'nowrap' }}>{t.appSub}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Nav */}
+      <nav style={{ padding:'6px 0', flexShrink:0 }}>
+        {navItems.map(({ key, Icon }) => {
+          const active = activePage === key;
+          const label  = t.navLabels[t.navKeys.indexOf(key)];
+          return (
+            <button key={key} onClick={() => onNav(key)} title={collapsed ? label : ''}
+              style={{
+                display:'flex', alignItems:'center', gap:10, width:'100%',
+                padding: collapsed ? '9px 24px' : '9px 18px',
+                border:'none', background: active ? 'rgba(255,207,0,0.1)' : 'transparent',
+                borderLeft:`3px solid ${active ? G : 'transparent'}`,
+                color: active ? G : 'rgba(255,255,255,0.5)',
+                fontFamily:'inherit', fontSize:13, fontWeight: active ? 600 : 400,
+                textAlign:'left', whiteSpace:'nowrap', transition:'all .12s',
+              }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background='rgba(255,255,255,0.05)'; e.currentTarget.style.color='#fff'; }}}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(255,255,255,0.5)'; }}}
+            >
+              <span style={{ flexShrink:0, display:'flex', opacity: active ? 1 : 0.7 }}><Icon /></span>
+              {!collapsed && <span>{label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Divider */}
+      <div style={{ height:1, background:'rgba(255,255,255,0.07)', margin:'2px 0', flexShrink:0 }} />
+
+      {/* Sports */}
+      <div style={{ flex:1, overflowY:'auto', padding:'6px 0' }}>
+        {!collapsed && (
+          <div style={{ padding:'7px 18px 4px', fontSize:10, fontWeight:600,
+            letterSpacing:0.8, textTransform:'uppercase', color:'rgba(255,255,255,0.22)' }}>
+            {t.sportsLabel}
+          </div>
+        )}
+        {t.sports.map((name, i) => {
+          const disabled = role === 'trainer' && i !== TRAINER_SPORT;
+          const active   = activeSport === i;
+          const isMine   = role === 'trainer' && i === TRAINER_SPORT;
+          return (
+            <button key={i} onClick={() => !disabled && onSport(active ? null : i)}
+              title={collapsed ? name : ''}
+              style={{
+                display:'flex', alignItems:'center', gap:8, width:'100%',
+                padding: collapsed ? '6px 26px' : '6px 18px',
+                border:'none', background: active ? 'rgba(0,85,164,0.22)' : 'transparent',
+                borderLeft:`3px solid ${active ? B : 'transparent'}`,
+                color: disabled ? 'rgba(255,255,255,0.18)' : active ? '#7CB9FF' : 'rgba(255,255,255,0.48)',
+                cursor: disabled ? 'default' : 'pointer',
+                fontFamily:'inherit', fontSize:12, textAlign:'left', whiteSpace:'nowrap', transition:'all .12s',
+              }}
+              onMouseEnter={e => { if (!disabled && !active) { e.currentTarget.style.color='rgba(255,255,255,0.78)'; e.currentTarget.style.background='rgba(255,255,255,0.04)'; }}}
+              onMouseLeave={e => { if (!disabled && !active) { e.currentTarget.style.color='rgba(255,255,255,0.48)'; e.currentTarget.style.background='transparent'; }}}
+            >
+              <span style={{
+                width:5, height:5, borderRadius:'50%', flexShrink:0,
+                background: disabled ? 'rgba(255,255,255,0.1)' : isMine ? G : B,
+              }} />
+              {!collapsed && <span style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{name}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+/* ─── HEADER ─────────────────────────────────────────────────── */
+function Header({ t, lang, onLang, role, onToggle, onLogout, onNav }) {
+  const NAMES = { admin:'Сергей Иванов', director:'Бейбут Атабеков', trainer:'Андрей Петров' };
+  const name = NAMES[role];
+  const initials = name.split(' ').map(w => w[0]).join('');
+  const avatarGrad = role === 'director'
+    ? `linear-gradient(135deg, ${DIR}, #0F766E)`
+    : `linear-gradient(135deg, ${B}, ${N})`;
+  return (
+    <header style={{
+      height:64, background:WH, borderBottom:`1px solid ${BR}`,
+      display:'flex', alignItems:'center', padding:'0 24px', gap:12, flexShrink:0,
+    }}>
+      <button onClick={onToggle} style={{
+        width:32, height:32, border:`1px solid ${BR}`, borderRadius:7,
+        background:'transparent', display:'flex', alignItems:'center',
+        justifyContent:'center', color:T1,
+      }}>
+        <Ic.Menu />
+      </button>
+
+      <div style={{ flex:1 }} />
+
+      {/* Language */}
+      <div style={{ display:'flex', gap:2, padding:3, borderRadius:8, background:BG, border:`1px solid ${BR}` }}>
+        {['ru','kz'].map(l => (
+          <button key={l} onClick={() => onLang(l)} style={{
+            padding:'3px 13px', border:'none', borderRadius:6,
+            background: lang === l ? WH : 'transparent',
+            color: lang === l ? T0 : T2,
+            fontWeight: lang === l ? 600 : 400, fontSize:12,
+            fontFamily:'inherit', boxShadow: lang === l ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+            transition:'all .12s',
+          }}>
+            {l.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      <NotificationBell onNav={onNav} />
+
+      {/* User */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, paddingLeft:16, borderLeft:`1px solid ${BR}` }}>
+        <div style={{ textAlign:'right' }}>
+          <div style={{ fontSize:13, fontWeight:600, color:T0 }}>{name}</div>
+          <div style={{ fontSize:11, color:T2 }}>{t.roles[role]}</div>
+        </div>
+        <div style={{
+          width:36, height:36, borderRadius:'50%',
+          background: avatarGrad,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          color:WH, fontWeight:700, fontSize:13, letterSpacing:0.5,
+        }}>{initials}</div>
+        <button onClick={onLogout} style={{
+          display:'flex', alignItems:'center', gap:5, padding:'5px 10px',
+          border:`1px solid ${BR}`, borderRadius:7, background:'transparent',
+          color:T2, fontSize:12, fontFamily:'inherit', cursor:'pointer',
+          transition:'all .12s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background=REB; e.currentTarget.style.color=RE; e.currentTarget.style.borderColor=RE+'44'; }}
+        onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color=T2; e.currentTarget.style.borderColor=BR; }}
+        >
+          <Ic.Logout />{t.logout}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+/* ─── KPI CARD ───────────────────────────────────────────────── */
+function KPICard({ label, value, sub, accent, Icon, onClick }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => onClick && setHov(true)}
+      onMouseLeave={() => onClick && setHov(false)}
+      style={{
+        background:WH, borderRadius:12, padding:'20px 22px',
+        border:`1px solid ${hov ? accent+'55' : BR}`, borderTop:`3px solid ${accent}`,
+        display:'flex', flexDirection:'column', gap:6,
+        cursor: onClick ? 'pointer' : 'default',
+        transition:'transform .12s, box-shadow .12s, border-color .12s',
+        transform: hov ? 'translateY(-2px)' : 'none',
+        boxShadow: hov ? `0 8px 24px ${accent}20` : 'none',
+      }}
+    >
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div style={{ fontSize:11, fontWeight:600, color:T1, textTransform:'uppercase', letterSpacing:0.6 }}>
+          {label}
+        </div>
+        <span style={{ color:accent, opacity:0.65 }}><Icon /></span>
+      </div>
+      <div style={{ fontSize:40, fontWeight:800, color:T0, lineHeight:1, letterSpacing:-1 }}>{value}</div>
+      {sub && <div style={{ fontSize:12, color:T2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ─── SPORTS TABLE ───────────────────────────────────────────── */
+function SportsTable({ t }) {
+  const withNames = SPORTS_DATA.map((d, i) => ({ s:d.s, name:t.sports[i] }));
+  const sorted = [...withNames].sort((a, b) => b.s - a.s);
+  const max = sorted[0]?.s || 1;
+  const total = SPORTS_DATA.reduce((acc, d) => acc + d.s, 0);
+  return (
+    <div style={{ background:WH, borderRadius:12, border:`1px solid ${BR}`, overflow:'hidden' }}>
+      <div style={{ padding:'14px 20px', borderBottom:`1px solid ${BR}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontWeight:600, fontSize:14, color:T0 }}>{t.distribution}</div>
+        <div style={{ fontSize:12, color:T2 }}>{t.total}: {total}</div>
+      </div>
+      <div style={{ maxHeight:448, overflowY:'auto' }}>
+        {sorted.map((item, i) => (
+          <div key={i}
+            style={{ display:'flex', alignItems:'center', gap:10, padding:'7px 20px', transition:'background .1s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#F8FAFC'}
+            onMouseLeave={e => e.currentTarget.style.background='transparent'}
+          >
+            <div style={{
+              width:22, height:22, borderRadius:5, flexShrink:0,
+              background: i < 3 ? G : '#F1F5F9',
+              color: i < 3 ? N : T2,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:10, fontWeight:700,
+            }}>{i + 1}</div>
+            <div style={{ width:148, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flexShrink:0, color:T0 }}>
+              {item.name}
+            </div>
+            <div style={{ flex:1, height:5, background:'#EEF2F7', borderRadius:3, overflow:'hidden' }}>
+              <div style={{
+                height:'100%', borderRadius:3, transition:'width 0.8s cubic-bezier(.4,0,.2,1)',
+                width:`${(item.s / max) * 100}%`,
+                background: i < 3 ? B : 'rgba(0,85,164,0.3)',
+              }} />
+            </div>
+            <div style={{ width:28, textAlign:'right', fontSize:13, fontWeight:600, color:T0, flexShrink:0 }}>{item.s}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── MEDICAL ALERTS ─────────────────────────────────────────── */
+function MedicalAlerts({ t, alerts, onNav }) {
+  const reds    = alerts.filter(a => a.status === 'red').length;
+  const yellows = alerts.filter(a => a.status === 'yellow').length;
+  return (
+    <div style={{ background:WH, borderRadius:12, border:`1px solid ${BR}`, overflow:'hidden', display:'flex', flexDirection:'column' }}>
+      <div style={{ padding:'14px 20px', borderBottom:`1px solid ${BR}`, display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+        <div style={{ fontWeight:600, fontSize:14, color:T0 }}>{t.medAlerts}</div>
+        <div style={{ display:'flex', gap:6 }}>
+          <span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:600, background:REB, color:RE }}>● {reds}</span>
+          <span style={{ padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:600, background:AMB, color:AM }}>● {yellows}</span>
+        </div>
+      </div>
+      <div style={{ overflowY:'auto' }}>
+        {alerts.map(a => (
+          <div key={a.id} style={{
+            display:'flex', alignItems:'flex-start', gap:12,
+            padding:'10px 20px', borderBottom:`1px solid #F1F5F9`,
+            borderLeft:`3px solid ${a.status === 'red' ? RE : AM}`,
+          }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:500, color:T0 }}>{a.name}</div>
+              <div style={{ fontSize:11, color:T2, marginTop:2 }}>{t.sports[a.si]} · {a.desc}</div>
+            </div>
+            <div style={{ textAlign:'right', flexShrink:0 }}>
+              <div style={{
+                fontSize:10, padding:'2px 7px', borderRadius:10, fontWeight:600, whiteSpace:'nowrap',
+                background: a.status === 'red' ? REB : AMB,
+                color: a.status === 'red' ? RE : AM,
+              }}>
+                {a.status === 'red' ? t.red : t.yellow}
+              </div>
+              <div style={{ fontSize:11, color:T3, marginTop:3 }}>{a.date}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+      {onNav && (
+        <div style={{ padding:'10px 20px', borderTop:`1px solid ${BR}`, flexShrink:0 }}>
+          <button onClick={() => onNav('medical')} style={{ fontSize:12, color:RE, background:'none', border:'none', fontFamily:'inherit', fontWeight:500, cursor:'pointer' }}>
+            {t.viewAll}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── ACHIEVEMENTS PANEL ─────────────────────────────────────── */
+function AchievementsPanel({ t, items, summary, onNav }) {
+  const MC = { gold:GO, silver:SI, bronze:BR2 };
+  const ME = { gold:'🥇', silver:'🥈', bronze:'🥉' };
+  const ML = { gold: t.gold, silver: t.silver, bronze: t.bronze };
+  return (
+    <div style={{ background:WH, borderRadius:12, border:`1px solid ${BR}`, overflow:'hidden' }}>
+      <div style={{ padding:'14px 20px', borderBottom:`1px solid ${BR}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+        <div style={{ fontWeight:600, fontSize:14, color:T0 }}>{t.recentAch}</div>
+        <div style={{ display:'flex', gap:14 }}>
+          {['gold','silver','bronze'].map(m => (
+            <span key={m} style={{ fontSize:12, fontWeight:600, color:MC[m] }}>{ME[m]} {summary[m]}</span>
+          ))}
+        </div>
+      </div>
+      <div>
+        {items.map(a => (
+          <div key={a.id}
+            style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px', borderBottom:`1px solid #F1F5F9`, transition:'background .1s' }}
+            onMouseEnter={e => e.currentTarget.style.background='#F8FAFC'}
+            onMouseLeave={e => e.currentTarget.style.background='transparent'}
+          >
+            <div style={{
+              width:34, height:34, borderRadius:'50%', flexShrink:0,
+              background:`${MC[a.medal]}18`,
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:18,
+            }}>{ME[a.medal]}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:500, color:T0 }}>{a.name}</div>
+              <div style={{ fontSize:11, color:T2, marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {a.comp} · {t.sports[a.si]}
+              </div>
+            </div>
+            <div style={{ fontSize:11, color:T3, flexShrink:0 }}>{a.date}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding:'10px 20px' }}>
+        <button onClick={() => onNav && onNav('achievements')} style={{ fontSize:12, color:B, background:'none', border:'none', fontFamily:'inherit', fontWeight:500, cursor:'pointer' }}>
+          {t.viewAll}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ADMIN / DIRECTOR DASHBOARD ────────────────────────────── */
+function AdminDashboard({ t, onNav }) {
+  const total = SPORTS_DATA.reduce((acc, d) => acc + d.s, 0);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
+        <KPICard label={t.kpi.students}     value={total} sub={t.subMay}       accent={B}  Icon={Ic.Users}  />
+        <KPICard label={t.kpi.trainers}     value="14"    sub={t.onePerSport}   accent={N}  Icon={Ic.Gear}   />
+        <KPICard label={t.kpi.medical}      value="8"     sub="3 🔴 · 5 🟡"   accent={RE} Icon={Ic.Cross}  />
+        <KPICard label={t.kpi.achievements} value="47"    sub="🥇 12 · 🥈 18 · 🥉 17" accent={GO} Icon={Ic.Trophy} />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'3fr 2fr', gap:20 }}>
+        <SportsTable t={t} />
+        <MedicalAlerts t={t} alerts={MEDICAL} onNav={onNav} />
+      </div>
+      <AchievementsPanel t={t} items={ACHIEVEMENTS.slice(0, 6)} summary={{ gold:12, silver:18, bronze:17 }} onNav={onNav} />
+    </div>
+  );
+}
+
+/* ─── TRAINER DASHBOARD ─────────────────────────────────────── */
+function TrainerDashboard({ t, onNav }) {
+  const SCHED = [
+    { day:'Пн', group:'Бокс-А', time:'09:00–11:00', hall:'Зал №3' },
+    { day:'Вт', group:'Бокс-Б', time:'09:00–11:00', hall:'Зал №3' },
+    { day:'Ср', group:'Бокс-В', time:'14:00–16:00', hall:'Зал №3' },
+    { day:'Чт', group:'Бокс-А', time:'09:00–11:00', hall:'Зал №3' },
+    { day:'Пт', group:'Бокс-Б', time:'14:00–16:00', hall:'Зал №3' },
+  ];
+  const myMed = MEDICAL.filter(m => m.si === 4);
+  const myAch = ACHIEVEMENTS.filter(a => a.si === 4);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16 }}>
+        <KPICard label={t.kpi.myStudents} value="42" sub={`4 ${t.groups}`}    accent={B}  Icon={Ic.Users}  onClick={() => onNav && onNav('students')} />
+        <KPICard label={t.kpi.myAlerts}   value={myMed.length} sub="1 🔴 · 1 🟡" accent={RE} Icon={Ic.Cross}  />
+        <KPICard label={t.kpi.myAch}      value={myAch.length} sub="2🥇 1🥈 2🥉"  accent={GO} Icon={Ic.Trophy} />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+        <div style={{ background:WH, borderRadius:12, border:`1px solid ${BR}`, overflow:'hidden' }}>
+          <div style={{ padding:'14px 20px', borderBottom:`1px solid ${BR}`, fontWeight:600, fontSize:14, color:T0 }}>
+            {t.weekSched}
+          </div>
+          {SCHED.map((s, i) => (
+            <div key={i} style={{
+              display:'flex', alignItems:'center', gap:14, padding:'11px 20px',
+              borderBottom: i < SCHED.length - 1 ? `1px solid #F1F5F9` : 'none',
+            }}>
+              <div style={{
+                width:38, height:38, borderRadius:9, flexShrink:0,
+                background:N, color:G, display:'flex', alignItems:'center',
+                justifyContent:'center', fontSize:12, fontWeight:700,
+              }}>{s.day}</div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:500, color:T0 }}>{s.group}</div>
+                <div style={{ fontSize:11, color:T2 }}>{s.time} · {s.hall}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <MedicalAlerts t={t} alerts={myMed} />
+      </div>
+      <AchievementsPanel t={t} items={myAch} summary={{ gold:2, silver:1, bronze:2 }} />
+    </div>
+  );
+}
+
+/* ─── DIRECTOR DASHBOARD ─────────────────────────────────────── */
+function DirectorDashboard({ t, onNav }) {
+  const total = SPORTS_DATA.reduce((acc, d) => acc + d.s, 0);
+  const PERF = [
+    { label:'Медальный КПД',   value:'13.2%', sub:'медалей на 100 учеников', color:GO  },
+    { label:'Травматизм',      value:'2.3%',  sub:'активных медслучаев',     color:RE  },
+    { label:'Норматив МС/КМС', value:'18.4%', sub:'выполнивших норматив',    color:DIR },
+  ];
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+      {/* Banner */}
+      <div style={{
+        background:`linear-gradient(135deg, ${DIR} 0%, #0F766E 100%)`,
+        borderRadius:14, padding:'20px 28px',
+        display:'flex', alignItems:'center', gap:20,
+        position:'relative', overflow:'hidden',
+      }}>
+        <div style={{ position:'absolute', right:-50, top:-50, width:200, height:200, borderRadius:'50%', background:'rgba(255,255,255,0.05)', pointerEvents:'none' }} />
+        <div style={{ flex:1, position:'relative' }}>
+          <div style={{ color:'rgba(255,255,255,0.55)', fontSize:11, fontWeight:600, letterSpacing:0.8, textTransform:'uppercase', marginBottom:5 }}>Обзор школы</div>
+          <div style={{ color:WH, fontSize:19, fontWeight:700, letterSpacing:-0.3 }}>РСШИКОР им. К. Ахметова</div>
+          <div style={{ color:'rgba(255,255,255,0.48)', fontSize:12, marginTop:3 }}>14 видов спорта · г. Алматы</div>
+        </div>
+        <div style={{ textAlign:'right', position:'relative' }}>
+          <div style={{ color:'rgba(255,255,255,0.48)', fontSize:11 }}>Учебный год</div>
+          <div style={{ color:WH, fontSize:28, fontWeight:800, letterSpacing:-1 }}>2025–2026</div>
+        </div>
+      </div>
+
+      {/* KPI */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px,1fr))', gap:16 }}>
+        <KPICard label={t.kpi.students}     value={total} sub={t.subMay}                accent={DIR}     Icon={Ic.Users}  />
+        <KPICard label={t.kpi.trainers}     value="14"    sub={t.onePerSport}             accent='#7C3AED' Icon={Ic.Gear}   />
+        <KPICard label={t.kpi.medical}      value="8"     sub="3 🔴 · 5 🟡"             accent={RE}      Icon={Ic.Cross}  />
+        <KPICard label={t.kpi.achievements} value="47"    sub="🥇 12 · 🥈 18 · 🥉 17"   accent={GO}      Icon={Ic.Trophy} />
+      </div>
+
+      {/* Performance */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+        {PERF.map(item => (
+          <div key={item.label} style={{ background:WH, borderRadius:12, padding:'18px 22px', border:`1px solid ${BR}`, borderTop:`3px solid ${item.color}` }}>
+            <div style={{ fontSize:11, fontWeight:600, color:T1, textTransform:'uppercase', letterSpacing:0.5, marginBottom:10 }}>{item.label}</div>
+            <div style={{ fontSize:36, fontWeight:800, color:T0, lineHeight:1, letterSpacing:-1 }}>{item.value}</div>
+            <div style={{ fontSize:12, color:T2, marginTop:6 }}>{item.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ display:'grid', gridTemplateColumns:'3fr 2fr', gap:20 }}>
+        <SportsTable t={t} />
+        <MedicalAlerts t={t} alerts={MEDICAL} onNav={onNav} />
+      </div>
+      <AchievementsPanel t={t} items={ACHIEVEMENTS.slice(0,6)} summary={{ gold:12, silver:18, bronze:17 }} onNav={onNav} />
+    </div>
+  );
+}
+
+/* ─── PLACEHOLDER PAGE ───────────────────────────────────────── */
+function PlaceholderPage({ t }) {
+  return (
+    <div style={{
+      background:WH, border:`1px solid ${BR}`, borderRadius:12,
+      padding:'72px 40px', textAlign:'center',
+    }}>
+      <div style={{ fontSize:44, marginBottom:14 }}>🚧</div>
+      <div style={{ fontSize:16, fontWeight:600, color:T0, marginBottom:6 }}>{t.inDev}</div>
+      <div style={{ color:T2, fontSize:13 }}>{t.inDevSub}</div>
+    </div>
+  );
+}
+
+/* ─── APP ────────────────────────────────────────────────────── */
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [activePage, setActivePage]   = useState('dashboard');
+  const [activeSport, setActiveSport] = useState(null);
+  const [isLoggedIn, setIsLoggedIn]   = useState(false);
+
+  const handleLogin  = useCallback((role) => { setTweak('role', role); setIsLoggedIn(true); }, []);
+  const handleLogout = useCallback(() => { setIsLoggedIn(false); setActivePage('dashboard'); setActiveSport(null); }, []);
+  const handleStudentNav = useCallback((stuId) => { setActivePage('students'); setStudentTarget(stuId); }, []);
+  const [studentTarget, setStudentTarget] = useState(null);
+
+  const t = LANG[tweaks.lang];
+  const pageLabel = t.navLabels[t.navKeys.indexOf(activePage)] || activePage;
+
+  if (!isLoggedIn) return <LoginScreen onLogin={handleLogin} />;
+
+  return (
+    <div style={{ display:'flex', height:'100vh', overflow:'hidden', background:BG, width:'100%' }}>
+      <Sidebar
+        t={t} role={tweaks.role}
+        activePage={activePage} onNav={setActivePage}
+        activeSport={activeSport} onSport={setActiveSport}
+        collapsed={tweaks.collapsed}
+      />
+
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
+        <Header
+          t={t} lang={tweaks.lang} onLang={l => setTweak('lang', l)}
+          role={tweaks.role}
+          onToggle={() => setTweak('collapsed', !tweaks.collapsed)}
+          onLogout={handleLogout}
+          onNav={setActivePage}
+        />
+        <main style={{ flex:1, overflowY:'auto', padding:'22px 26px' }}
+              data-screen-label={pageLabel}>
+          {/* Page title */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:22, flexWrap:'wrap' }}>
+            <h1 style={{ fontSize:22, fontWeight:700, color:T0, letterSpacing:-0.3 }}>{pageLabel}</h1>
+            <span style={{ fontSize:13, color:T3 }}>{t.today}</span>
+            {activeSport !== null && ['students','medical','achievements'].includes(activePage) && (
+              <button onClick={() => setActiveSport(null)} style={{
+                display:'flex', alignItems:'center', gap:5, marginLeft:4,
+                padding:'3px 10px 3px 12px', border:'1px solid #93C5FD', borderRadius:20,
+                background:'#EFF6FF', color:'#1D4ED8', fontSize:12, fontWeight:500,
+                fontFamily:'inherit', cursor:'pointer', transition:'all .12s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background='#DBEAFE'}
+              onMouseLeave={e => e.currentTarget.style.background='#EFF6FF'}
+              >
+                {t.sports[activeSport]}
+                <span style={{ fontSize:10, marginLeft:2, opacity:0.7 }}>✕</span>
+              </button>
+            )}
+          </div>
+
+          {activePage === 'dashboard'
+            ? (tweaks.role === 'trainer'
+                ? <TrainerDashboard t={t} onNav={setActivePage} />
+                : tweaks.role === 'director'
+                ? <DirectorDashboard t={t} onNav={setActivePage} />
+                : <AdminDashboard t={t} onNav={setActivePage} />)
+            : activePage === 'students'
+            ? <StudentPage  t={t} role={tweaks.role} lang={tweaks.lang} activeSport={activeSport} onClearSport={() => setActiveSport(null)} openStudentId={studentTarget} onClearTarget={() => setStudentTarget(null)} />
+            : activePage === 'medical'
+            ? <MedicalPage      t={t} role={tweaks.role} lang={tweaks.lang} activeSport={activeSport} onClearSport={() => setActiveSport(null)} onStudentClick={handleStudentNav} />
+            : activePage === 'achievements'
+            ? <AchievementsPage t={t} role={tweaks.role} lang={tweaks.lang} activeSport={activeSport} onClearSport={() => setActiveSport(null)} onStudentClick={handleStudentNav} />
+            : activePage === 'schedule'
+            ? <SchedulePage     t={t} role={tweaks.role} lang={tweaks.lang} />
+            : activePage === 'users'
+            ? <UsersPage        t={t} role={tweaks.role} lang={tweaks.lang} />
+            : activePage === 'reports'
+            ? <ReportsPage      t={t} role={tweaks.role} lang={tweaks.lang} />
+            : <PlaceholderPage t={t} />
+          }
+        </main>
+      </div>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Роль / Role" />
+        <TweakRadio
+          label="Роль"
+          value={tweaks.role}
+          options={[
+            { value:'admin',    label:'Admin'    },
+            { value:'director', label:'Director' },
+            { value:'trainer',  label:'Trainer'  },
+          ]}
+          onChange={v => setTweak('role', v)}
+        />
+        <TweakSection label="Интерфейс" />
+        <TweakRadio
+          label="Язык"
+          value={tweaks.lang}
+          options={[{ value:'ru', label:'RU' }, { value:'kz', label:'KZ' }]}
+          onChange={v => setTweak('lang', v)}
+        />
+        <TweakToggle
+          label="Compact sidebar"
+          value={tweaks.collapsed}
+          onChange={v => setTweak('collapsed', v)}
+        />
+      </TweaksPanel>
+      <ToastContainer />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
